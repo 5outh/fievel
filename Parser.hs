@@ -79,7 +79,7 @@ variable = liftA EVar $ T.identifier lexer
 
 fievelExpr =
   let paren = T.parens lexer 
-      trys  = ((<|>) <$> try <*> (try . paren)) <$> [defn, fundefn, ifte, lambda]
+      trys  = ((<|>) <$> try <*> (try . paren)) <$> [fundefn, defn, ifte, lambda]
       base  = ((<|>) <$> id <*> paren) <$> [letExpr, variable, bool, int, str]
   in choice (trys ++ base)
 
@@ -101,4 +101,10 @@ typeSig = do
   typ <- fievelType
   return $ EType name typ
 
-parseFievel = parse (try typeSig <|> fievelExpr) "(fievel)"
+-- (Maybe Type, Expr)
+exprDef = do
+  typ  <- optionMaybe $ try typeSig
+  expr <- fievelExpr
+  return (typ, expr)
+
+parseFievel = parse exprDef "(fievel)"
