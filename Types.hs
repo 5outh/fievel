@@ -15,10 +15,11 @@ data Value =
 -- Expressions
 data Expr = 
     EVal Value
-  | EVar String Expr    -- Variable
+  | EVar String         -- Variable
+  | EDef String Expr    -- Binding
   | EIf Expr Expr Expr  -- if then else
   | ELet String Expr Expr -- let..in
-  | VLam Expr           -- \x -> e (lambda abstraction)
+  | ELam String Expr      -- \x -> e (lambda abstraction)
   | EAp Expr Expr       -- function application
   | EType String Type   -- type signature
     deriving (Show, Eq)

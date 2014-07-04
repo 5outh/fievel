@@ -1,8 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
-import Text.ParserCombinators.Parsec hiding ((<|>))
+import Text.ParserCombinators.Parsec 
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.Parsec.Token as T
-import Control.Applicative hiding (optional, many)
+import Control.Applicative hiding (optional, many, (<|>))
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
@@ -55,17 +55,33 @@ letExpr = do
   t2 <- fievelExpr
   return $ ELet name t1 t2
 
+lambda = do
+  T.reservedOp lexer "\\"
+  name <- T.identifier lexer
+  T.reservedOp lexer "->"
+  exprs <- many1 fievelExpr
+  return $ ELam name (foldr1 EAp exprs)
+
 -- @TODO: Expressions
 defn = do
   name <- T.identifier lexer
   T.reservedOp lexer ":="
   expr <- fievelExpr
-  return $ EVar name expr
+  return $ EDef name expr
+
+fundefn = do
+  (f:args) <- many1 (T.identifier lexer)
+  T.reservedOp lexer ":="
+  exprs <- many1 fievelExpr
+  return $ EDef f (foldr ELam (foldr1 EAp exprs) args)
+
+variable = liftA EVar $ T.identifier lexer
 
 fievelExpr =
-    choice 
-  $ ((<|>) <$> id <*> T.parens lexer) 
-  <$> [ifte, bool, int, str, defn, letExpr]
+  let paren = T.parens lexer 
+      trys  = ((<|>) <$> try <*> (try . paren)) <$> [defn, fundefn, ifte, lambda]
+      base  = ((<|>) <$> id <*> paren) <$> [letExpr, variable, bool, int, str]
+  in choice (trys ++ base)
 
 -- Type parsers
 constType =
@@ -75,7 +91,7 @@ constType =
 
 fievelType = 
   liftA (foldr1 TLam) 
-  ( (constType <|> T.parens lexer fievelType) 
+  ( (constType <|> T.parens lexer fievelType)
     `sepBy` 
     (T.reservedOp lexer "->") )
 
@@ -85,4 +101,4 @@ typeSig = do
   typ <- fievelType
   return $ EType name typ
 
-parseFievel = parse (typeSig <|> fievelExpr) "(fievel)"
+parseFievel = parse (try typeSig <|> fievelExpr) "(fievel)"
