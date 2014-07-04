@@ -1,4 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
+module Parser where
+
 import Text.ParserCombinators.Parsec 
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.Parsec.Token as T
@@ -20,7 +22,7 @@ fievelDef = LanguageDef {
   , opStart        = oneOf "~!@#$%^&*|:<>?=+-\\"
   , opLetter       = oneOf "~!@#$%^&*|:<>?=+-"
   , reservedNames  = [ "if", "then", "else", "let", "be", "in", "Int", "Bool", "String"
-                     , "True", "False"]
+                     , "True", "False", "run" ]
   , reservedOpNames = [ "+", "-", "*", "^", "/", "<>", "!", ":=", "=", "!="
                       , ">", "<", ">=", "<=", "'", "\"", "->", "." ]
   , caseSensitive = True
@@ -63,9 +65,8 @@ lambda = do
   exprs <- many1 fievelExpr
   return $ ELam name (foldr1 EAp exprs)
 
--- @TODO: Expressions
 defn = do
-  name <- T.identifier lexer
+  name <- T.identifier lexer <|> (reserved "run" >> return "run")
   T.reservedOp lexer ":="
   expr <- fievelExpr
   return $ EDef name expr
@@ -109,7 +110,11 @@ exprDef = do
   T.reservedOp lexer "."
   return (typ, expr)
 
-parseFievel = parse exprDef "(fievel)"
+-- parse manually
+parseFievel :: String -> Either FievelError (Maybe Expr, Expr) 
+parseFievel src = case parse exprDef "(fievel)" src of
+  Left err -> Left $ Parser (show err)
+  Right e  -> Right e
 
 typeToTuple :: Expr -> Maybe (String, Type)
 typeToTuple (EType nm tp) = Just $ (nm, tp)
@@ -119,6 +124,8 @@ defToTuple :: Expr -> Maybe (String, Expr)
 defToTuple  (EDef a val)  = Just $ (a, val)
 defToTuple  _             = Nothing
 
+-- parse from file
+parseFievelFile :: FilePath -> IO (Either FievelError FievelState)
 parseFievelFile file = do
   src <- parseFromFile (many exprDef) file
   case src of
