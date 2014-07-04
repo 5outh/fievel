@@ -1,0 +1,8 @@
+a : Int
+a := 80.
+
+f : Int -> Int
+f a := a.
+
+z : String
+z := if True then "Whatever" else "Fine".

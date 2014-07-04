@@ -15,14 +15,18 @@ data Value =
 -- Expressions
 data Expr = 
     EVal Value
-  | EVar String         -- Variable
-  | EDef String Expr    -- Binding
-  | EIf Expr Expr Expr  -- if then else
+  | EVar String           -- Variable
+  | EDef String Expr      -- Binding
+  | EIf Expr Expr Expr    -- if then else
   | ELet String Expr Expr -- let..in
   | ELam String Expr      -- \x -> e (lambda abstraction)
-  | EAp Expr Expr       -- function application
-  | EType String Type   -- type signature
+  | EAp Expr Expr         -- function application
+  | EType String Type     -- type signature
     deriving (Show, Eq)
+
+data FievelError = 
+  Parser String
+  deriving (Show)
 
 data FievelState = FievelState{
   eBindings :: Map String Expr, -- expression bindings 

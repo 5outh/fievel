@@ -7,6 +7,7 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 import qualified Data.Map as M
+import Data.Maybe
 import Types
 
 fievelDef = LanguageDef {
@@ -21,7 +22,7 @@ fievelDef = LanguageDef {
   , reservedNames  = [ "if", "then", "else", "let", "be", "in", "Int", "Bool", "String"
                      , "True", "False"]
   , reservedOpNames = [ "+", "-", "*", "^", "/", "<>", "!", ":=", "=", "!="
-                      , ">", "<", ">=", "<=", "'", "\"", "->" ]
+                      , ">", "<", ">=", "<=", "'", "\"", "->", "." ]
   , caseSensitive = True
 }
 
@@ -105,6 +106,24 @@ typeSig = do
 exprDef = do
   typ  <- optionMaybe $ try typeSig
   expr <- fievelExpr
+  T.reservedOp lexer "."
   return (typ, expr)
 
 parseFievel = parse exprDef "(fievel)"
+
+typeToTuple :: Expr -> Maybe (String, Type)
+typeToTuple (EType nm tp) = Just $ (nm, tp)
+typeToTuple _             = Nothing
+
+defToTuple :: Expr -> Maybe (String, Expr)
+defToTuple  (EDef a val)  = Just $ (a, val)
+defToTuple  _             = Nothing
+
+parseFievelFile file = do
+  src <- parseFromFile (many exprDef) file
+  case src of
+    Left err -> return . Left . Parser $ show err
+    Right xs -> let (ts, es) = (catMaybes $ map fst xs, map snd xs)
+                in return . Right $ FievelState
+                    (M.fromList $ catMaybes $ map defToTuple es)
+                    (M.fromList $ catMaybes $ map typeToTuple ts)

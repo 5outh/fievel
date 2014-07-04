@@ -1,4 +1,4 @@
 fievel
 ======
 
-a very small programming language
+A very small programming language.
