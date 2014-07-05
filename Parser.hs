@@ -63,7 +63,7 @@ lambda = do
   name <- T.identifier lexer
   T.reservedOp lexer "->"
   exprs <- many1 fievelExpr
-  return $ ELam name (foldr1 EAp exprs)
+  return $ ELam Nothing name (foldr1 EAp exprs)
 
 defn = do
   name <- T.identifier lexer <|> (reserved "run" >> return "run")
@@ -75,9 +75,9 @@ fundefn = do
   (f:args) <- many1 (T.identifier lexer)
   T.reservedOp lexer ":="
   exprs <- many1 fievelExpr
-  return $ EDef f (foldr ELam (foldr1 EAp exprs) args)
+  return $ EDef f (foldr (ELam Nothing) (foldr1 EAp exprs) args)
 
-variable = liftA EVar $ T.identifier lexer
+variable = liftA (EVar Nothing) $ T.identifier lexer
 
 fievelExpr =
   let paren = T.parens lexer 
@@ -123,6 +123,15 @@ typeToTuple _             = Nothing
 defToTuple :: Expr -> Maybe (String, Expr)
 defToTuple  (EDef a val)  = Just $ (a, val)
 defToTuple  _             = Nothing
+
+populateDebruijn :: Expr -> Expr
+populateDebruijn = shift M.empty
+  where shift ctx (EVar n v) = EVar (Just (ctx M.! n')) v
+          where n' = maybe 0 id n
+        shift ctx (EAp a b)  = EAp (shift ctx a) (shift ctx b)
+        shift ctx (ELam n nm body) = ELam (Just n') nm (shift c' body)
+          where n' = maybe 0 id n
+                c' = M.insert n' 0 (M.map (+1) ctx)
 
 -- parse from file
 parseFievelFile :: FilePath -> IO (Either FievelError FievelState)

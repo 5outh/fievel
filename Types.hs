@@ -15,11 +15,13 @@ data Value =
 -- Expressions
 data Expr = 
     EVal Value
-  | EVar String           -- Variable
+  | EVar (Maybe Integer) String -- Variable
+    --   ^ De Bruijn Index
   | EDef String Expr      -- Binding
   | EIf Expr Expr Expr    -- if then else
   | ELet String Expr Expr -- let..in
-  | ELam String Expr      -- \x -> e (lambda abstraction)
+  | ELam (Maybe Integer) String Expr -- \x -> e (lambda abstraction)
+    --    ^ De Bruijn Index
   | EAp Expr Expr         -- function application
   | EType String Type     -- type signature
     deriving (Show, Eq)
