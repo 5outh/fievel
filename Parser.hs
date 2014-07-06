@@ -124,6 +124,7 @@ defToTuple :: Expr -> Maybe (String, Expr)
 defToTuple  (EDef a val)  = Just $ (a, val)
 defToTuple  _             = Nothing
 
+-- Populate the De Bruijn indices of a lambda
 populateDebruijn :: Expr -> Expr
 populateDebruijn = shift M.empty
   where shift ctx (EVar n v) = EVar (Just (ctx M.! n')) v

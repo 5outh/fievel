@@ -1,6 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Types where
 
 import Data.Map
+import Control.Lens.TH
 
 -- Types
 data Type = TInt | TBool | TStr | TLam Type Type deriving (Show, Eq)
@@ -31,6 +33,11 @@ data FievelError =
   deriving (Show)
 
 data FievelState = FievelState{
-  eBindings :: Map String Expr, -- expression bindings 
-  tBindings :: Map String Type  -- type bindings
+  _eBindings :: Map String Expr, -- expression bindings 
+  _tBindings :: Map String Type  -- type bindings
 } deriving (Show, Eq)
+
+makeLenses ''FievelState
+
+emptyState :: FievelState
+emptyState = FievelState (fromList []) (fromList [])
