@@ -2,7 +2,7 @@
 module Types where
 
 import Data.Map
-import Lens.Family2.TH
+import Control.Lens
 
 -- Types
 data Type = TInt | TBool | TStr | TLam Type Type deriving (Show, Eq)
@@ -32,7 +32,7 @@ data FievelError =
   Parser String
   deriving (Show)
 
-data FievelState = FievelState{
+data FievelState = FievelState {
   _eBindings :: Map String Expr, -- expression bindings 
   _tBindings :: Map String Type  -- type bindings
 } deriving (Show, Eq)
