@@ -2,7 +2,7 @@
 module Types where
 
 import Data.Map
-import Control.Lens.TH
+import Lens.Family2.TH
 
 -- Types
 data Type = TInt | TBool | TStr | TLam Type Type deriving (Show, Eq)
@@ -37,7 +37,7 @@ data FievelState = FievelState{
   _tBindings :: Map String Type  -- type bindings
 } deriving (Show, Eq)
 
-makeLenses ''FievelState
+$(makeLenses ''FievelState)
 
 emptyState :: FievelState
 emptyState = FievelState (fromList []) (fromList [])
