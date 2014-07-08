@@ -1,0 +1,14 @@
+f : Int 
+  -> Int
+  -> Bool
+
+str : String 
+int : Int
+
+f xs := butts
+  or butts
+  and more butts
+
+str := "annie hall"
+
+int := 1001

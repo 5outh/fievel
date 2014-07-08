@@ -1,4 +1,15 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
+
+{-
+So here's the thing: I think LanguageDefs aren't used for manipulating
+source files directly, they're only good for parsing out the actual expressions.
+
+A source file consists of *several* "programs" -- function definitions that I can parse using
+a LanguageDef, and same goes for the type declarations. However, I don't want to lex everything together...that's bad.
+
+NOTE: We can parse individual lines + the lines that are preceded by spaces or tabs as single expressions
+(type level or normal), and parse into these *first*
+-}
 module Parser where
 
 import Text.ParserCombinators.Parsec 
@@ -144,3 +155,31 @@ parseFievelFile file = do
                 in return . Right $ FievelState
                     (M.fromList $ catMaybes $ map defToTuple es)
                     (M.fromList $ catMaybes $ map typeToTuple ts)
+
+isWhitespace :: Char -> Bool
+isWhitespace c = c == ' ' || c == '\t'
+
+chunk acc [] = [acc]
+chunk acc (x:xs) 
+  | null x = chunk acc xs
+  | isWhitespace (head x) = chunk (acc ++ (' ': dropWhile isWhitespace x)) xs
+  | otherwise = acc : chunk x xs 
+
+chunkify :: FilePath -> IO [String]
+chunkify file = do
+  contents <- lines <$> readFile file
+  return $ filter (not . null) $ chunk [] contents
+
+typeBinding = do
+  name <- T.identifier lexer
+  T.colon lexer
+  typ <- fievelType
+  return $ (name, typ)
+
+expressionBinding = choice $ (<|>) <$> try <*> (try . paren) <$> [fundefn, defn]
+  where paren = T.parens lexer 
+
+parseFievelExpr = 
+      Right <$> typeBinding
+  <|> Left  <$> expressionBinding
+
