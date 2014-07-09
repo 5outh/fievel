@@ -21,6 +21,8 @@ import Control.Monad.Trans
 import Control.Monad.Trans.State
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Traversable
+
 import Types
 
 fievelDef = LanguageDef {
@@ -183,6 +185,10 @@ expressionBinding = do
     _        -> error "Parsing failed; internal error."
   where paren = T.parens lexer
 
+parseFievelExpr = 
+  try (PExpr  <$> expressionBinding)
+  <|>  PType  <$> typeBinding
+
 data ParseResult = 
     PType (String, Type)
   | PExpr (String, Expr)
@@ -193,22 +199,10 @@ partition []              = ([], [])
 partition (PType st : xs) = let (ts, es) = partition xs in (st:ts, es)
 partition (PExpr se : xs) = let (ts, es) = partition xs in (ts, se:es)
 
-parseFievelExpr = 
-  try (PExpr  <$> expressionBinding)
-  <|>  PType  <$> typeBinding
-
-isRight :: Either a b -> Bool
-isRight (Right _) = True
-isRight _         = False
-
-fromRight :: Either a b -> b
-fromRight (Right x) = x
-fromRight (Left _ ) = error "Attempt to extract Right value from Left"
-
-parseFievelFromFile :: FilePath -> IO FievelState
+parseFievelFromFile :: FilePath -> IO (Either FievelError FievelState)
 parseFievelFromFile file = do
-  exprs <- map (parse parseFievelExpr "(from file)") <$> chunkify file
-  guard (all isRight exprs)
-  let (ts, es) = partition $ fromRight <$> exprs
-  return $ FievelState (M.fromList es) (M.fromList ts)
-
+  exprs <- traverse (parse parseFievelExpr "(from file)") <$> chunkify file
+  case exprs of
+    Left err -> return . Left $ Parser (show err)
+    Right xs -> let (ts, es) = partition xs 
+                in return . Right $ FievelState (M.fromList es) (M.fromList ts) 
