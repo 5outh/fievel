@@ -4,4 +4,4 @@ f xs := butts
 
 str := "annie hall"
 
-int := 1001
+int := 1001 + 1001

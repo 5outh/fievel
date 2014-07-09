@@ -96,31 +96,15 @@ variable = liftA EVar $ T.identifier lexer
 
 fievelExpr =
   let paren = T.parens lexer 
-      trys  = ((<|>) <$> try <*> (try . paren)) <$> [ifte, lambda]
-      base  = ((<|>) <$> id <*> paren) <$> [letExpr, variable, bool, int, str]
-  in choice (trys ++ base)
+      trys  = ((<|>) <$> try <*> (try . paren)) <$> [ifte, lambda, letExpr, operator]
+  in choice trys
 
--- Type parsers
-constType =
-        reserved "Int"    *> pure TInt
-    <|> reserved "Bool"   *> pure TBool
-    <|> reserved "String" *> pure TStr
-
-fievelType = 
-  liftA (foldr1 TLam) 
-  ( (constType <|> T.parens lexer fievelType)
-    `sepBy` 
-    (T.reservedOp lexer "->") )
-
-typeSig = do
-  name <- T.identifier lexer
-  T.colon lexer
-  typ <- fievelType
-  return $ EType name typ
+term = choice $ ((<|>) <$> id <*> T.parens lexer) 
+             <$> [variable, bool, int, str]
 
 -- Operator-y expression Parser
 operator = expr
-  where expr      = buildExpressionParser operators fievelExpr
+  where expr      = buildExpressionParser operators term
         operators = [ [Prefix (string "!" >> spaces >> return (EOp . BUO . BNot)) ]
                     , [ nnbo "*" (:*:)
                       , nnbo "/" (:/:)
@@ -144,6 +128,24 @@ operator = expr
                 ssbo = typedBinOp SSBO
                 nbbo = typedBinOp NBBO
                 bbo  = typedBinOp BBO
+
+-- Type parsers
+constType =
+        reserved "Int"    *> pure TInt
+    <|> reserved "Bool"   *> pure TBool
+    <|> reserved "String" *> pure TStr
+
+fievelType = 
+  liftA (foldr1 TLam) 
+  ( (constType <|> T.parens lexer fievelType)
+    `sepBy` 
+    (T.reservedOp lexer "->") )
+
+typeSig = do
+  name <- T.identifier lexer
+  T.colon lexer
+  typ <- fievelType
+  return $ EType name typ
 
 typeToTuple :: Expr -> Maybe (String, Type)
 typeToTuple (EType nm tp) = Just $ (nm, tp)
