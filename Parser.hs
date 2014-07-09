@@ -77,7 +77,7 @@ lambda = do
   name <- T.identifier lexer
   T.reservedOp lexer "->"
   exprs <- many1 fievelExpr
-  return $ ELam Nothing name (foldr1 EAp exprs)
+  return $ ELam name (foldr1 EAp exprs)
 
 defn = do
   name <- T.identifier lexer <|> (reserved "run" >> return "run")
@@ -89,9 +89,9 @@ fundefn = do
   (f:args) <- many1 (T.identifier lexer)
   T.reservedOp lexer ":="
   exprs <- many1 fievelExpr
-  return $ EDef f (foldr (ELam Nothing) (foldr1 EAp exprs) args)
+  return $ EDef f (foldr ELam (foldr1 EAp exprs) args)
 
-variable = liftA (EVar Nothing) $ T.identifier lexer
+variable = liftA EVar $ T.identifier lexer
 
 fievelExpr =
   let paren = T.parens lexer 

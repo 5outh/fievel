@@ -22,13 +22,11 @@ data Value =
 -- Expressions
 data Expr = 
     EVal Value
-  | EVar (Maybe Integer) String -- Variable
-    --   ^ De Bruijn Index
+  | EVar String -- Variable
   | EDef String Expr      -- Binding @TODO: Remove
   | EIf Expr Expr Expr    -- if then else
-  | ELet String Expr Expr -- let..in
-  | ELam (Maybe Integer) String Expr -- \x -> e (lambda abstraction)
-    --    ^ De Bruijn Index
+  | ELet String Expr Expr -- let..in (substitution)
+  | ELam String Expr -- \x -> e (lambda abstraction)
   | EAp Expr Expr         -- function application
   | EType String Type     -- type signature @TODO: Remove
     deriving (Show, Eq)
