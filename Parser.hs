@@ -176,10 +176,39 @@ typeBinding = do
   typ <- fievelType
   return $ (name, typ)
 
-expressionBinding = choice $ (<|>) <$> try <*> (try . paren) <$> [fundefn, defn]
-  where paren = T.parens lexer 
+expressionBinding = do
+  def <- choice $ (<|>) <$> try <*> (try . paren) <$> [fundefn, defn]
+  case defToTuple def of
+    Just tpl -> return tpl
+    _        -> error "Parsing failed; internal error."
+  where paren = T.parens lexer
+
+data ParseResult = 
+    PType (String, Type)
+  | PExpr (String, Expr)
+    deriving (Show, Eq)
+
+partition :: [ParseResult] -> ([(String, Type)], [(String, Expr)])
+partition []              = ([], [])
+partition (PType st : xs) = let (ts, es) = partition xs in (st:ts, es)
+partition (PExpr se : xs) = let (ts, es) = partition xs in (ts, se:es)
 
 parseFievelExpr = 
-      Right <$> typeBinding
-  <|> Left  <$> expressionBinding
+  try (PExpr  <$> expressionBinding)
+  <|>  PType  <$> typeBinding
+
+isRight :: Either a b -> Bool
+isRight (Right _) = True
+isRight _         = False
+
+fromRight :: Either a b -> b
+fromRight (Right x) = x
+fromRight (Left _ ) = error "Attempt to extract Right value from Left"
+
+parseFievelFromFile :: FilePath -> IO FievelState
+parseFievelFromFile file = do
+  exprs <- map (parse parseFievelExpr "(from file)") <$> chunkify file
+  guard (all isRight exprs)
+  let (ts, es) = partition $ fromRight <$> exprs
+  return $ FievelState (M.fromList es) (M.fromList ts)
 

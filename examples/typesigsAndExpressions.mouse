@@ -1,0 +1,10 @@
+f : String -> String
+f xs := butts
+  or butts
+  and more butts
+
+str : String
+str := "annie hall"
+
+int : Int
+int := 1001
