@@ -118,23 +118,24 @@ typeSig = do
   typ <- fievelType
   return $ EType name typ
 
--- Expression Parser
+-- Operator-y expression Parser
 operator = expr
   where expr      = buildExpressionParser operators fievelExpr
         operators = [ [Prefix (string "!" >> spaces >> return (EOp . BUO . BNot)) ]
-                    , [ nnbo "+" (:+:)
-                      , nnbo "-" (:-:)
-                      , nnbo "*" (:*:)
+                    , [ nnbo "*" (:*:)
                       , nnbo "/" (:/:)
                       , ssbo "<>" (:<>:)
+                      , bbo "|" (:|:)
+                      , bbo "&" (:&:) 
+                      ]
+                    , [ nnbo "+" (:+:)
+                      , nnbo "-" (:-:)
                       , nbbo "=" (:=:)
                       , nbbo "!=" (:!=:)
                       , nbbo ">" (:>:)
                       , nbbo "<" (:<:)
                       , nbbo ">=" (:>=:)
-                      , nbbo "<=" (:<=:)
-                      , bbo "|" (:|:)
-                      , bbo "&" (:&:) ]
+                      , nbbo "<=" (:<=:) ]
                     ]
           where binary n c = Infix (string n *> spaces *> pure c) AssocLeft
                 lifted typ ctor = \x y -> EOp . typ $ x `ctor` y
