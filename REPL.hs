@@ -46,21 +46,20 @@ runGetType str = do
   case M.lookup str types of 
     Just t  -> lift $ outputStrLn $ show t 
     Nothing -> do
-      let out = parseFievel fs str
+      let out = parseSingleExpr str
       lift $ case out of 
-        Left (Parser err)          -> outputStrLn str >> outputStrLn err
-        Right (PType (_, typ), _)  -> outputStrLn $ show typ
-        Right (PExpr (_, expr), _) -> outputStrLn "Not yet implemented: Type inference"
+        Left (Parser err) -> outputStrLn str >> outputStrLn err
+        Right e           -> outputStrLn "Not yet implemented: Type inference"
 
 runPrint str = do
   fs@(FievelState exprs _) <- get
   case M.lookup str exprs of
     Just e -> lift $ outputStrLn $ show e
     Nothing -> do
-      let out = parseFievel fs str
+      let out = parseSingleExpr str
       lift $ case out of 
         Left (Parser err) -> outputStrLn str >> outputStrLn err
-        Right (res, _)    -> outputStrLn $ show res
+        Right e    -> outputStrLn $ show e
 
 runLoad path = do
   fs <- get

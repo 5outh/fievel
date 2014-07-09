@@ -95,7 +95,7 @@ variable = liftA (EVar Nothing) $ T.identifier lexer
 
 fievelExpr =
   let paren = T.parens lexer 
-      trys  = ((<|>) <$> try <*> (try . paren)) <$> [fundefn, defn, ifte, lambda]
+      trys  = ((<|>) <$> try <*> (try . paren)) <$> [ifte, lambda]
       base  = ((<|>) <$> id <*> paren) <$> [letExpr, variable, bool, int, str]
   in choice (trys ++ base)
 
@@ -180,6 +180,13 @@ partition (PExpr se : xs) = let (ts, es) = partition xs in (ts, se:es)
 -- call a parsing function with the empty state
 initially :: (FievelState -> a) -> a
 initially f = f emptyState
+
+parseSingleExpr :: String -> Either FievelError Expr
+parseSingleExpr str = 
+  let exprs = parse fievelExpr "(fievel)" str
+  in case exprs of
+       Left  err  -> Left $ Parser (show err)
+       Right expr -> Right expr
 
 parseFievel :: FievelState -> String -> Either FievelError (ParseResult, FievelState)
 parseFievel fs str = 
