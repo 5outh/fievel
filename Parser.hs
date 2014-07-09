@@ -24,6 +24,7 @@ import Data.Maybe
 import Data.Traversable
 
 import Types
+import Util
 
 fievelDef = LanguageDef {
   commentStart   = "{-"
@@ -123,12 +124,6 @@ exprDef = do
   T.reservedOp lexer "."
   return (typ, expr)
 
--- parse manually
-parseFievel :: String -> Either FievelError (Maybe Expr, Expr) 
-parseFievel src = case parse exprDef "(fievel)" src of
-  Left err -> Left $ Parser (show err)
-  Right e  -> Right e
-
 typeToTuple :: Expr -> Maybe (String, Type)
 typeToTuple (EType nm tp) = Just $ (nm, tp)
 typeToTuple _             = Nothing
@@ -137,36 +132,19 @@ defToTuple :: Expr -> Maybe (String, Expr)
 defToTuple  (EDef a val)  = Just $ (a, val)
 defToTuple  _             = Nothing
 
--- Populate the De Bruijn indices of a lambda
-populateDebruijn :: Expr -> Expr
-populateDebruijn = shift M.empty
-  where shift ctx (EVar n v) = EVar (Just (ctx M.! n')) v
-          where n' = maybe 0 id n
-        shift ctx (EAp a b)  = EAp (shift ctx a) (shift ctx b)
-        shift ctx (ELam n nm body) = ELam (Just n') nm (shift c' body)
-          where n' = maybe 0 id n
-                c' = M.insert n' 0 (M.map (+1) ctx)
-
--- parse from file
-parseFievelFile :: FilePath -> IO (Either FievelError FievelState)
-parseFievelFile file = do
-  src <- parseFromFile (many exprDef) file
-  case src of
-    Left err -> return . Left . Parser $ show err
-    Right xs -> let (ts, es) = (catMaybes $ map fst xs, map snd xs)
-                in return . Right $ FievelState
-                    (M.fromList $ catMaybes $ map defToTuple es)
-                    (M.fromList $ catMaybes $ map typeToTuple ts)
-
 isWhitespace :: Char -> Bool
 isWhitespace c = c == ' ' || c == '\t'
 
+chunk :: String -> [String] -> [String]
 chunk acc [] = [acc]
 chunk acc (x:xs) 
   | null x = chunk acc xs
   | isWhitespace (head x) = chunk (acc ++ (' ': dropWhile isWhitespace x)) xs
   | otherwise = acc : chunk x xs 
 
+-- Separate a file into "chunks": Sections of code that
+-- start with a line with no leading whitespace,
+-- with possible trailing lines with leading whitespace.
 chunkify :: FilePath -> IO [String]
 chunkify file = do
   contents <- lines <$> readFile file
@@ -199,10 +177,22 @@ partition []              = ([], [])
 partition (PType st : xs) = let (ts, es) = partition xs in (st:ts, es)
 partition (PExpr se : xs) = let (ts, es) = partition xs in (ts, se:es)
 
-parseFievelFromFile :: FilePath -> IO (Either FievelError FievelState)
-parseFievelFromFile file = do
-  exprs <- traverse (parse parseFievelExpr "(from file)") <$> chunkify file
+-- call a parsing function with the empty state
+initially :: (FievelState -> a) -> a
+initially f = f emptyState
+
+parseFievel :: FievelState -> String -> Either FievelError FievelState
+parseFievel fs str = 
+  let exprs = parse parseFievelExpr "(fievel)" str
+  in case exprs of
+       Left err           -> Left $ Parser (show err)
+       Right (PExpr expr) -> Right $ (FievelState (M.fromList [expr]) (M.empty)) `mergeBindings` fs
+       Right (PType typ)  -> Right $ (FievelState (M.empty)  (M.fromList [typ])) `mergeBindings` fs
+
+parseFievelFile :: FievelState -> FilePath -> IO (Either FievelError FievelState)
+parseFievelFile fs file = do
+  exprs <- traverse (parse parseFievelExpr "(fievel file)") <$> chunkify file
   case exprs of
     Left err -> return . Left $ Parser (show err)
     Right xs -> let (ts, es) = partition xs 
-                in return . Right $ FievelState (M.fromList es) (M.fromList ts) 
+                in return . Right $ (FievelState (M.fromList es) (M.fromList ts)) `mergeBindings` fs

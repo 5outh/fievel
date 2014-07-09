@@ -62,7 +62,8 @@ runPrint str = do
         Right (_, e)      -> outputStrLn $ show e
 
 runLoad path = do
-  out <- liftIO $ parseFievelFile path
+  fs <- get
+  out <- liftIO $ parseFievelFile fs path
   case out of
     Left (Parser err) -> lift $ outputStrLn err
     Right st -> do
@@ -72,8 +73,8 @@ runLoad path = do
 
 runBind :: String -> StateT FievelState (InputT IO) ()
 runBind str = do
-  let out = parseFievel str
-  (FievelState exprs types) <- get
+  fs@(FievelState exprs types) <- get
+  let out = parseFievel fs str
   case out of 
     Left (Parser err) -> lift $ (outputStrLn str >> outputStrLn err)
     Right (t, e) -> do
