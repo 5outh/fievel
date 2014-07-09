@@ -22,13 +22,51 @@ data Value =
 -- Expressions
 data Expr = 
     EVal Value
-  | EVar String -- Variable
-  | EDef String Expr      -- Binding @TODO: Remove
+  | EVar String           -- Variable
   | EIf Expr Expr Expr    -- if then else
   | ELet String Expr Expr -- let..in (substitution)
-  | ELam String Expr -- \x -> e (lambda abstraction)
+  | ELam String Expr      -- \x -> e (lambda abstraction)
   | EAp Expr Expr         -- function application
-  | EType String Type     -- type signature @TODO: Remove
+  | EDef String Expr      -- Binding
+  | EType String Type     -- type signature
+  | EOp PrimOp            -- primitives
+    deriving (Show, Eq)
+
+data PrimOp = 
+    NNBO NumNumBinOp       -- Int -> Int -> Int 
+  | SSBO StringStringBinOp -- String -> String -> String
+  | NBBO NumBoolBinOp      -- Int -> Int -> Bool
+  | BUO  BoolUnaryOp       -- Bool -> Bool
+  | BBO  BoolBinOp         -- Bool -> Bool -> Bool 
+    deriving (Show, Eq)
+
+data NumNumBinOp =
+    Expr :+: Expr
+  | Expr :-: Expr
+  | Expr :*: Expr
+  | Expr :/: Expr
+    deriving (Show, Eq)
+
+data StringStringBinOp = 
+  Expr :<>: Expr
+  deriving (Show, Eq)
+
+data NumBoolBinOp =
+    Expr :=: Expr
+  | Expr :!=: Expr
+  | Expr :<: Expr
+  | Expr :>: Expr
+  | Expr :>=: Expr
+  | Expr :<=: Expr
+    deriving (Show, Eq)
+
+data BoolUnaryOp =
+  BNot Expr
+  deriving (Show, Eq)
+
+data BoolBinOp = 
+    Expr :|: Expr
+  | Expr :&: Expr
     deriving (Show, Eq)
 
 data FievelError = 

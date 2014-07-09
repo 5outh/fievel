@@ -14,6 +14,7 @@ module Parser where
 
 import Text.ParserCombinators.Parsec 
 import Text.ParserCombinators.Parsec.Language
+import Text.ParserCombinators.Parsec.Expr
 import qualified Text.Parsec.Token as T
 import Control.Applicative hiding (optional, many, (<|>))
 import Control.Monad
@@ -117,12 +118,31 @@ typeSig = do
   typ <- fievelType
   return $ EType name typ
 
--- (Maybe Type, Expr)
-exprDef = do
-  typ  <- optionMaybe $ try typeSig
-  expr <- fievelExpr
-  T.reservedOp lexer "."
-  return (typ, expr)
+-- Expression Parser
+operator = expr
+  where expr      = buildExpressionParser operators fievelExpr
+        operators = [ [Prefix (string "!" >> spaces >> return (EOp . BUO . BNot)) ]
+                    , [ nnbo "+" (:+:)
+                      , nnbo "-" (:-:)
+                      , nnbo "*" (:*:)
+                      , nnbo "/" (:/:)
+                      , ssbo "<>" (:<>:)
+                      , nbbo "=" (:=:)
+                      , nbbo "!=" (:!=:)
+                      , nbbo ">" (:>:)
+                      , nbbo "<" (:<:)
+                      , nbbo ">=" (:>=:)
+                      , nbbo "<=" (:<=:)
+                      , bbo "|" (:|:)
+                      , bbo "&" (:&:) ]
+                    ]
+          where binary n c = Infix (string n *> spaces *> pure c) AssocLeft
+                lifted typ ctor = \x y -> EOp . typ $ x `ctor` y
+                typedBinOp typ symb ctor = binary symb (lifted typ ctor)
+                nnbo = typedBinOp NNBO
+                ssbo = typedBinOp SSBO
+                nbbo = typedBinOp NBBO
+                bbo  = typedBinOp BBO
 
 typeToTuple :: Expr -> Maybe (String, Type)
 typeToTuple (EType nm tp) = Just $ (nm, tp)
