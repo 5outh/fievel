@@ -42,24 +42,25 @@ parseCommand = parse command "(command)"
 runQuit = lift $ outputStrLn "Goodbye!"
 
 runGetType str = do
-  (FievelState _ types) <- get
+  fs@(FievelState _ types) <- get
   case M.lookup str types of 
     Just t  -> lift $ outputStrLn $ show t 
     Nothing -> do
-      let out = parseFievel str
+      let out = parseFievel fs str
       lift $ case out of 
-        Left (Parser err) -> outputStrLn str >> outputStrLn err
-        Right (t, _)      -> outputStrLn $ show t
+        Left (Parser err)          -> outputStrLn str >> outputStrLn err
+        Right (PType (_, typ), _)  -> outputStrLn $ show typ
+        Right (PExpr (_, expr), _) -> outputStrLn "Not yet implemented: Type inference"
 
 runPrint str = do
-  (FievelState exprs _) <- get
+  fs@(FievelState exprs _) <- get
   case M.lookup str exprs of
     Just e -> lift $ outputStrLn $ show e
     Nothing -> do
-      let out = parseFievel str
+      let out = parseFievel fs str
       lift $ case out of 
         Left (Parser err) -> outputStrLn str >> outputStrLn err
-        Right (_, e)      -> outputStrLn $ show e
+        Right (res, _)    -> outputStrLn $ show res
 
 runLoad path = do
   fs <- get
@@ -68,8 +69,7 @@ runLoad path = do
     Left (Parser err) -> lift $ outputStrLn err
     Right st -> do
       put st
-      st' <- get
-      liftIO $ print st'
+      lift $ (outputStrLn $ show st)
 
 runBind :: String -> StateT FievelState (InputT IO) ()
 runBind str = do
@@ -77,27 +77,18 @@ runBind str = do
   let out = parseFievel fs str
   case out of 
     Left (Parser err) -> lift $ (outputStrLn str >> outputStrLn err)
-    Right (t, e) -> do
-      case t of
-        Nothing -> return ()
-        Just t  -> let tpl = typeToTuple t in case tpl of 
-          Nothing      -> return ()
-          Just (s, t') -> do
-            let types' = M.insert s t' types
-            put (FievelState exprs types')
-      let tpl = defToTuple e in case tpl of
-        Nothing      -> return ()
-        Just (s, e') -> do
-          let exprs' = M.insert s e' exprs
-          put (FievelState exprs' types)
+    Right (res, fs') -> do
+      lift $ outputStrLn (show res)
+      put fs'
 
 runEvaluate str = lift $ outputStrLn "Todo: Evaluation"
 
 loop :: StateT FievelState (InputT IO) ()
 loop = do
-    minput <- lift $ getInputLine "> "
+    minput <- lift $ getInputLine "Fievel*> "
     case minput of
         Nothing -> runQuit
+        Just "" -> loop
         Just cmd -> do 
           let parsed = parseCommand cmd
           lift $ outputStrLn $ show parsed

@@ -181,13 +181,13 @@ partition (PExpr se : xs) = let (ts, es) = partition xs in (ts, se:es)
 initially :: (FievelState -> a) -> a
 initially f = f emptyState
 
-parseFievel :: FievelState -> String -> Either FievelError FievelState
+parseFievel :: FievelState -> String -> Either FievelError (ParseResult, FievelState)
 parseFievel fs str = 
   let exprs = parse parseFievelExpr "(fievel)" str
   in case exprs of
        Left err           -> Left $ Parser (show err)
-       Right (PExpr expr) -> Right $ (FievelState (M.fromList [expr]) (M.empty)) `mergeBindings` fs
-       Right (PType typ)  -> Right $ (FievelState (M.empty)  (M.fromList [typ])) `mergeBindings` fs
+       Right e@(PExpr expr) -> Right $ (e, (FievelState (M.fromList [expr]) (M.empty)) `mergeBindings` fs)
+       Right t@(PType typ)  -> Right $ (t, (FievelState (M.empty)  (M.fromList [typ])) `mergeBindings` fs)
 
 parseFievelFile :: FievelState -> FilePath -> IO (Either FievelError FievelState)
 parseFievelFile fs file = do
