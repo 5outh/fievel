@@ -3,13 +3,41 @@ module TypeChecker where
 
 import Types
 
+--   EVal Value
+-- | EVar String           -- Variable
+-- | EOp PrimOp            -- primitive operator
+-- | EIf Expr Expr Expr    -- if then else
+-- | ELet String Expr Expr -- let..in (substitution)
+-- | ELam String Expr      -- \x -> e (lambda abstraction)
+-- | EAp Expr Expr         -- function application
+-- | EDef String Expr      -- Binding
+-- | EType String Type     -- type signature
+
 typeOf :: Expr -> Either FievelError Type
 typeOf (EVal (VInt _))  = Right TInt
 typeOf (EVal (VBool _)) = Right TBool
 typeOf (EVal (VStr _))  = Right TStr
 typeOf (EOp op)         = typeOfOp op
+typeOf (EIf e1 e2 e3)   = typeOfIf e1 e2 e3
 typeOf (EVar s)         = Left . TypeError $ "Variable not bound: " ++ s
 typeOf _                = Left . TypeError $ "Not yet implemented."
+
+typeOfIf :: Expr -> Expr -> Expr -> Either FievelError Type
+typeOfIf e1 e2 e3 = 
+  let t1 = typeOf e1
+      t2 = typeOf e2
+      t3 = typeOf e3
+  in case t1 of
+    l@(Left _) -> l
+    (Right t) -> 
+      if | t /= TBool -> Left . TypeError $ "Expected TBool but got " ++ show t ++ " in an if-statement, namely " ++ show (EIf e1 e2 e3)
+         | otherwise -> case (t2, t3) of
+          (Right t2', Right t3') -> 
+            if t2' == t3'
+            then Right t2'
+            else Left . TypeError $ "Mismatched types in if-statement: (" ++ show t2' ++ " != " ++ show t3' ++ "), namely " ++ show (EIf e1 e2 e3) 
+          (l@(Left t), _) -> l
+          (_, l@(Left t)) -> l
 
 -- Operation type checking 
 typeOfOp :: PrimOp -> Either FievelError Type
