@@ -1,8 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 import System.Console.Haskeline
-import Parser
-import Types
 import Text.ParserCombinators.Parsec
 import Control.Applicative hiding (many, optional, (<|>))
 import Control.Monad.Trans.State hiding (get, put)
@@ -11,6 +9,10 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans
 import qualified Data.Map as M
 import Control.Lens
+
+import Parser
+import Types
+import TypeChecker
 
 -- Command line command types
 data Command = 
@@ -49,7 +51,9 @@ runGetType str = do
       let out = parseSingleExpr str
       lift $ case out of 
         Left (Parser err) -> outputStrLn str >> outputStrLn err
-        Right e           -> outputStrLn "Not yet implemented: Type inference"
+        Right e           -> case typeOf e of
+          Right t  -> outputStrLn $ show t
+          Left (TypeError err) -> outputStrLn err
 
 runPrint str = do
   fs@(FievelState exprs _) <- get

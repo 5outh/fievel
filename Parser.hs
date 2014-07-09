@@ -116,12 +116,13 @@ operator = expr
                       , nnbo "-" (:-:)
                       , nbbo "=" (:=:)
                       , nbbo "!=" (:!=:)
-                      , nbbo ">" (:>:)
-                      , nbbo "<" (:<:)
                       , nbbo ">=" (:>=:)
-                      , nbbo "<=" (:<=:) ]
+                      , nbbo "<=" (:<=:)
+                      , nbbo ">" (:>:)
+                      , nbbo "<" (:<:) ]
                     ]
-          where binary n c = Infix (string n *> spaces *> pure c) AssocLeft
+          -- ** NB. I don't know if `try` is safe here!!
+          where binary n c = Infix (try $ string n *> spaces *> pure c) AssocLeft
                 lifted typ ctor = \x y -> EOp . typ $ x `ctor` y
                 typedBinOp typ symb ctor = binary symb (lifted typ ctor)
                 nnbo = typedBinOp NNBO

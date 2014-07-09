@@ -2,6 +2,6 @@ f xs := butts
   or butts
   and more butts
 
-str := "annie hall"
+str := "annie hall" <> " is a film " <> "about superheros!"
 
 int := 1001 + 1001

@@ -23,13 +23,13 @@ data Value =
 data Expr = 
     EVal Value
   | EVar String           -- Variable
+  | EOp PrimOp            -- primitive operator
   | EIf Expr Expr Expr    -- if then else
   | ELet String Expr Expr -- let..in (substitution)
   | ELam String Expr      -- \x -> e (lambda abstraction)
   | EAp Expr Expr         -- function application
   | EDef String Expr      -- Binding
   | EType String Type     -- type signature
-  | EOp PrimOp            -- primitives
     deriving (Show, Eq)
 
 data PrimOp = 
@@ -70,8 +70,9 @@ data BoolBinOp =
     deriving (Show, Eq)
 
 data FievelError = 
-  Parser String
-  deriving (Show)
+    Parser    String
+  | TypeError String
+    deriving (Show)
 
 data FievelState = FievelState {
   _eBindings :: Map String Expr, -- expression bindings 
