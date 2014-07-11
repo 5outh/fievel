@@ -131,26 +131,28 @@ checkUnaryOp et ft e opname =
 -- the variable is (i.e. forall a. a)
 --
 
--- Infer the bindings of the variables of `e` and populate the state with them.
--- @TODO: Clean.
+-- @TODO: Cover all cases.
+-- NB. Can run getBindings with an initial state if needed; i.e. for let..in expressions.
+getBindings :: Expr -> State Context (Maybe FievelError)
+getBindings expr = case expr of
+  EOp op          -> getOpBindings op
+  e@(EIf  _ _ _ ) -> getIfBindings  e 
+  e@(ELet _ _ _ ) -> getLetBindings e
+  e@(ELam _ _   ) -> getLamBindings e
+  e@(EAp  _ _   ) -> getApBindings  e
+  EVal v          -> return Nothing
+  EVar str        -> return . Just . TypeError $ "Variable " ++ show str ++ " is not bound."
+  EDef def e      -> return . Just . TypeError $ "Encountered top-level definition for " ++ show def
+  EType v t       -> return . Just . TypeError $ "Encountered type signature for " ++ show v
+
+getIfBindings, getLetBindings, getLamBindings, getApBindings :: Expr -> State Context (Maybe FievelError)
+getIfBindings = undefined
+getLetBindings = undefined
+getLamBindings = undefined
+getApBindings = undefined
 
 ins :: Type -> String -> Expr -> State Context (Maybe FievelError)
 ins t a e = modify (M.insert a t) >> getBindings e
-
--- @TODO: Cover all cases.
--- NB. Can run getBindings with an initial state if needed; i.e. for let..in expressions.
--- NB. I don't think that this can actually fail?
-getBindings :: Expr -> State Context (Maybe FievelError)
-getBindings expr = case expr of
-  EOp op        -> getOpBindings op
-  EVal v       -> error "Not yet implemented."
-  EVar str     -> error "Not yet implemented."
-  EIf e1 e2 e3 -> error "Not yet implemented."
-  ELet v e1 e2 -> error "Not yet implemented."
-  ELam v e     -> error "Not yet implemented."
-  EAp v e      -> error "Not yet implemented."
-  EDef def e   -> return . Just . TypeError $ "Encountered top-level definition for " ++ show def
-  EType v t    -> return . Just . TypeError $ "Encountered type signature for " ++ show v
 
 -- NB. all cases covered here.
 getOpBindings :: PrimOp -> State Context (Maybe FievelError)

@@ -52,6 +52,7 @@ data PrimOp =
 data FievelError = 
     Parser    String
   | TypeError String
+  | InternalError String
     deriving (Show)
 
 data FievelState = FievelState {
