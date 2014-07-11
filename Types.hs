@@ -32,41 +32,21 @@ data Expr =
   | EType String Type     -- type signature
     deriving (Show, Eq)
 
-data PrimOp = 
-    NNBO NumNumBinOp       -- Int -> Int -> Int 
-  | SSBO StringStringBinOp -- String -> String -> String
-  | NBBO NumBoolBinOp      -- Int -> Int -> Bool
-  | BUO  BoolUnaryOp       -- Bool -> Bool
-  | BBO  BoolBinOp         -- Bool -> Bool -> Bool 
-    deriving (Show, Eq)
-
-data NumNumBinOp =
+data PrimOp =
     Expr :+: Expr
   | Expr :-: Expr
   | Expr :*: Expr
   | Expr :/: Expr
-    deriving (Show, Eq)
-
-data StringStringBinOp = 
-  Expr :<>: Expr
-  deriving (Show, Eq)
-
-data NumBoolBinOp =
-    Expr :=: Expr
+  | Expr :<>: Expr
+  | Expr :=: Expr
   | Expr :!=: Expr
   | Expr :<: Expr
   | Expr :>: Expr
   | Expr :>=: Expr
   | Expr :<=: Expr
-    deriving (Show, Eq)
-
-data BoolUnaryOp =
-  BNot Expr
-  deriving (Show, Eq)
-
-data BoolBinOp = 
-    Expr :|: Expr
+  | Expr :|: Expr
   | Expr :&: Expr
+  | BNot Expr
     deriving (Show, Eq)
 
 data FievelError = 

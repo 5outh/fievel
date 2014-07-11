@@ -28,7 +28,7 @@ import Types
 import Util
 
 fievelDef = LanguageDef {
-  commentStart   = "{-"
+    commentStart   = "{-"
   , commentEnd     = "-}"
   , commentLine    = "--"
   , nestedComments = False
@@ -105,30 +105,26 @@ term = choice $ ((<|>) <$> id <*> T.parens lexer)
 -- Operator-y expression Parser
 operator = expr
   where expr      = buildExpressionParser operators term
-        operators = [ [Prefix (string "!" >> spaces >> return (EOp . BUO . BNot)) ]
-                    , [ nnbo "*" (:*:)
-                      , nnbo "/" (:/:)
-                      , ssbo "<>" (:<>:)
-                      , bbo "|" (:|:)
-                      , bbo "&" (:&:) 
+        operators = [ [Prefix (string "!" >> spaces >> return (EOp . BNot)) ]
+                    , [ typedBinOp "*" (:*:)
+                      , typedBinOp "/" (:/:)
+                      , typedBinOp "<>" (:<>:)
+                      , typedBinOp "|" (:|:)
+                      , typedBinOp "&" (:&:) 
                       ]
-                    , [ nnbo "+" (:+:)
-                      , nnbo "-" (:-:)
-                      , nbbo "=" (:=:)
-                      , nbbo "!=" (:!=:)
-                      , nbbo ">=" (:>=:)
-                      , nbbo "<=" (:<=:)
-                      , nbbo ">" (:>:)
-                      , nbbo "<" (:<:) ]
+                    , [ typedBinOp "+" (:+:)
+                      , typedBinOp "-" (:-:)
+                      , typedBinOp "=" (:=:)
+                      , typedBinOp "!=" (:!=:)
+                      , typedBinOp ">=" (:>=:)
+                      , typedBinOp "<=" (:<=:)
+                      , typedBinOp ">" (:>:)
+                      , typedBinOp "<" (:<:) ]
                     ]
           -- ** NB. I don't know if `try` is safe here!!
           where binary n c = Infix (try $ string n *> spaces *> pure c) AssocLeft
-                lifted typ ctor = \x y -> EOp . typ $ x `ctor` y
-                typedBinOp typ symb ctor = binary symb (lifted typ ctor)
-                nnbo = typedBinOp NNBO
-                ssbo = typedBinOp SSBO
-                nbbo = typedBinOp NBBO
-                bbo  = typedBinOp BBO
+                lifted ctor = \x y -> EOp $ x `ctor` y
+                typedBinOp symb ctor = binary symb (lifted ctor)
 
 -- Type parsers
 constType =
