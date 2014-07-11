@@ -142,8 +142,15 @@ ins t a e = modify (M.insert a t) >> getBindings e
 -- NB. I don't think that this can actually fail?
 getBindings :: Expr -> State Context (Maybe FievelError)
 getBindings expr = case expr of
-  EOp op -> getOpBindings op
-  _      -> undefined
+  EOp op        -> getOpBindings op
+  EVal v       -> error "Not yet implemented."
+  EVar str     -> error "Not yet implemented."
+  EIf e1 e2 e3 -> error "Not yet implemented."
+  ELet v e1 e2 -> error "Not yet implemented."
+  ELam v e     -> error "Not yet implemented."
+  EAp v e      -> error "Not yet implemented."
+  EDef def e   -> return . Just . TypeError $ "Encountered top-level definition for " ++ show def
+  EType v t    -> return . Just . TypeError $ "Encountered type signature for " ++ show v
 
 -- NB. all cases covered here.
 getOpBindings :: PrimOp -> State Context (Maybe FievelError)
