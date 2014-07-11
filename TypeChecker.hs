@@ -133,22 +133,83 @@ checkUnaryOp et ft e opname =
 
 -- @TODO: Cover all cases.
 -- NB. Can run getBindings with an initial state if needed; i.e. for let..in expressions.
+-- NB. Nothing in this case signals a *success*, contrary to what it may seem.
 getBindings :: Expr -> State Context (Maybe FievelError)
 getBindings expr = case expr of
   EOp op          -> getOpBindings op
-  e@(EIf  _ _ _ ) -> getIfBindings  e 
+  ELam _ e        -> getBindings e
+  e@(EIf b e1 e2) -> getIfBindings  e -- check
   e@(ELet _ _ _ ) -> getLetBindings e
-  e@(ELam _ _   ) -> getLamBindings e
   e@(EAp  _ _   ) -> getApBindings  e
   EVal v          -> return Nothing
   EVar str        -> return . Just . TypeError $ "Variable " ++ show str ++ " is not bound."
   EDef def e      -> return . Just . TypeError $ "Encountered top-level definition for " ++ show def
   EType v t       -> return . Just . TypeError $ "Encountered type signature for " ++ show v
 
-getIfBindings, getLetBindings, getLamBindings, getApBindings :: Expr -> State Context (Maybe FievelError)
-getIfBindings = undefined
+getIfBindings, getLetBindings, getApBindings :: Expr -> State Context (Maybe FievelError)
+getIfBindings e@(EIf _ (EVar b) (EVar c)) = 
+  return . Just . TypeError $ "Could not deduce singular type for branches of if-statement, namely " ++ show e
+
+getIfBindings (EIf (EVar a) (EVar b) e2) = do
+  modify (M.insert a TBool)
+  maybeErr <- getBindings e2
+  case maybeErr of
+    err@(Just _) -> return err
+    Nothing -> case (typeOf e2) of
+      Right t -> modify (M.insert b t) >> return Nothing
+      Left err -> return . Just $ err
+
+getIfBindings (EIf (EVar a) e1 (EVar c)) = do
+  modify (M.insert a TBool)
+  maybeErr <- getBindings e1
+  case maybeErr of
+    err@(Just _) -> return err
+    Nothing -> case (typeOf e1) of
+      Right t -> modify (M.insert c t) >> return Nothing
+      Left err -> return . Just $ err
+
+getIfBindings (EIf (EVar a) e1 e2) = do
+  modify (M.insert a TBool)
+  maybeErr <- getBindings e1
+  case maybeErr of
+    Nothing      -> getBindings e2
+    err@(Just _) -> return err
+
+getIfBindings (EIf a (EVar b) e2) = do
+  maybeErr <- getBindings a
+  case maybeErr of
+    err@(Just _) -> return err
+    Nothing -> do 
+      maybeErr' <- getBindings e2
+      case maybeErr' of
+        err@(Just _) -> return err
+        Nothing -> case (typeOf e2) of
+          Right t -> modify (M.insert b t) >> return Nothing
+          Left err -> return . Just $ err
+
+getIfBindings (EIf a e1 (EVar c)) = do
+  maybeErr <- getBindings a
+  case maybeErr of
+    err@(Just _) -> return err
+    Nothing -> do 
+      maybeErr' <- getBindings e1
+      case maybeErr' of
+        err@(Just _) -> return err
+        Nothing -> case (typeOf e1) of
+          Right t -> modify (M.insert c t) >> return Nothing
+          Left err -> return . Just $ err
+
+getIfBindings (EIf a b c) = do
+  mErr <- getBindings a
+  case mErr of
+    err@(Just _) -> return err
+    Nothing -> do
+      mErr' <- getBindings b
+      case mErr' of
+        err@(Just _) -> return err
+        Nothing -> getBindings c
+
 getLetBindings = undefined
-getLamBindings = undefined
 getApBindings = undefined
 
 ins :: Type -> String -> Expr -> State Context (Maybe FievelError)
