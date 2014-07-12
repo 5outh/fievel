@@ -1,4 +1,33 @@
-{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE MultiWayIf, TupleSections #-}
+{-
+
+Idea: Use a Zipper for type inference on variables; introduce zipper types for each
+      spot in the AST that a value could have come from. When we hit a Var, go up one step
+      and check the appropriate other spots. For example, say we have the expression:
+
+      \y -> \x -> y + x
+      
+      == ELam "y" (ELam "x" (EVar "y" :+: EVar "x"))
+
+      We see a lambda with an expression and descend. We see another lambda with another expression and descend again.
+      Now we see (e :+: e'). We first descend into e, to find EVar "y". We note that we got there from the first hole
+      in :+:, so y must be a TInt. Add this to the context. We do the same for e' with x; it must be a TInt.
+
+      We now unfold and tell the inner Lambda that x : TInt. Now this expression has type TLam TInt TInt (Int -> Int).
+      We now note that the original inner expression has type TLam TInt TInt, and find that y : TInt. Now the outer
+      expression has type TLam TInt (TLam TInt TInt) (Int -> Int -> Int) and we are done.
+
+      A Zipper type may encapsulate every single location that is possible within the AST. It may, however, be possible
+      to just note that we're coming from a position that implies that any variable in that position must have a 
+      specific type (i.e. a Var coming from the first position in a :+: constructor has type TInt no matter what).
+      But, it's not always that simple! Consider, for example, if a then b else c, where we want the type of b. This 
+      necessarily depends on the type of c -- it's not a constant. How would we handle that (I don't know)?
+
+      In general, though, the idea would be to not automatically assume a variable is unbound if it is encountered.
+      We instead want to get the *inferred* type of the variable, when appropriate*
+
+      I don't know when it is appropriate.
+-}
 module TypeChecker where
 
 import Data.Map as M
@@ -22,14 +51,166 @@ type TypeChecker = Contextual (Either FievelError Type)
 -- EDef String Expr      -- Binding        ** not needed
 -- EType String Type     -- type signature ** not needed
 
+data ASTCrumb = 
+    If1 Expr Expr -- => Bool
+  | If2 Expr Expr-- => typeOf if3
+  | If3 Expr Expr-- => typeOf if2
+  | If2Var Expr Expr -- => typeof expr
+  | If3Var Expr Expr -- => typeof expr
+  | Let1 String Expr -- => no inference, don't bind
+  | Let2 String Expr -- => no inference, don't bind
+  | Lam String  -- => typeOf var in context, else undecidable
+  | Ap1 Expr  -- => Definitely a lambda, otherwise depends on Ap1
+  | Ap2 Expr  -- => Depends on type of Ap1
+  -- Int -> Int -> Int
+  | Plus1 Expr -- => Int
+  | Plus2 Expr -- => Int
+  | Minus1 Expr -- => Int
+  | Minus2 Expr -- => Int
+  | Times1 Expr -- => Int
+  | Times2 Expr -- => Int
+  | Div1 Expr -- => Int
+  | Div2 Expr -- => Int
+  -- String -> String -> String
+  | Concat1 Expr -- => String
+  | Concat2 Expr -- => String
+  -- Int -> Int -> Bool
+  | Equal1 Expr -- => Int
+  | Equal2 Expr -- => Int
+  | NEqual1 Expr -- => Int
+  | NEqual2 Expr -- => Int
+  | LT1 Expr -- => Int
+  | LT2 Expr -- => Int
+  | GT1 Expr -- => Int
+  | GT2 Expr -- => Int
+  | GEQ1 Expr -- => Int
+  | GEQ2 Expr -- => Int
+  | LTE1 Expr -- => Int
+  | LTE2 Expr -- => Int
+  -- Bool -> Bool -> Bool
+  | Or1 Expr -- => Bool
+  | Or2 Expr -- => Bool
+  | And1 Expr -- => Bool
+  | And2 Expr -- => Bool
+  -- Bool -> Bool
+  | Not -- => Bool
+    deriving (Show, Eq)
+
+-- How to traverse back
+type Crumbs    = [ASTCrumb]
+
+-- Current expression, last crumb
+data ASTZipper = ASTZipper Expr Crumbs
+
+goUp :: ASTZipper -> ASTZipper
+goUp z@(ASTZipper _ []) = z
+goUp (ASTZipper e (c:cs)) = (flip ASTZipper cs) $ case c of
+    If1 e1 e2  -> EIf e e1 e2
+    If2 e1 e2  -> EIf e1 e e2
+    If3 e1 e2  -> EIf e1 e2 e
+    If2Var e1 e2 -> EIf e1 e e2
+    If3Var e1 e2 -> EIf e1 e2 e
+    -- ^ Variables are undecided.
+    Let1 s e1  -> ELet s e e1
+    Let2 s e1  -> ELet s e1 e
+    Lam str    -> ELam str e
+    Ap1 e1     -> EAp e e1
+    Ap2 e1     -> EAp e1 e
+    Plus1 e1   -> EOp $ e  :+: e1
+    Plus2 e1   -> EOp $ e1 :+: e
+    Minus1 e1  -> EOp $ e  :-: e1
+    Minus2 e1  -> EOp $ e1 :-:  e
+    Times1 e1  -> EOp $ e  :*: e1
+    Times2 e1  -> EOp $ e1 :*:  e
+    Div1 e1    -> EOp $ e  :/: e1
+    Div2 e1    -> EOp $ e1 :/:  e
+    Concat1 e1 -> EOp $ e  :<>: e1
+    Concat2 e1 -> EOp $ e1 :<>:  e
+    Equal1 e1  -> EOp $ e  :=: e1
+    Equal2 e1  -> EOp $ e1 :=:  e
+    NEqual1 e1 -> EOp $ e  :!=: e1
+    NEqual2 e1 -> EOp $ e1 :!=:  e
+    LT1 e1     -> EOp $ e  :<: e1
+    LT2 e1     -> EOp $ e1 :<:  e
+    GT1 e1     -> EOp $ e  :>: e1
+    GT2 e1     -> EOp $ e1 :>:  e
+    GEQ1 e1    -> EOp $ e  :>=: e1
+    GEQ2 e1    -> EOp $ e1 :>=:  e
+    LTE1 e1    -> EOp $ e  :<=: e1
+    LTE2 e1    -> EOp $ e1 :<=:  e
+    Or1 e1     -> EOp $ e  :|: e1
+    Or2 e1     -> EOp $ e1 :|:  e
+    And1 e1    -> EOp $ e  :&: e1
+    And2 e1    -> EOp $ e1 :&:  e
+    Not        -> EOp $ BNot e
+
+-- Given the position a variable came from, infer its type.
+getVarType :: ASTCrumb -> Type
+getVarType c = case c of
+  If1 _ _   -> TBool
+  Plus1 e1   -> TInt
+  Plus2 e1   -> TInt
+  Minus1 e1  -> TInt
+  Minus2 e1  -> TInt
+  Times1 e1  -> TInt
+  Times2 e1  -> TInt
+  Div1 e1    -> TInt
+  Div2 e1    -> TInt
+  Concat1 e1 -> TStr
+  Concat2 e1 -> TStr
+  Equal1 e1  -> TInt
+  Equal2 e1  -> TInt
+  NEqual1 e1 -> TInt
+  NEqual2 e1 -> TInt
+  LT1 e1     -> TInt
+  LT2 e1     -> TInt
+  GT1 e1     -> TInt
+  GT2 e1     -> TInt
+  GEQ1 e1    -> TInt
+  GEQ2 e1    -> TInt
+  LTE1 e1    -> TInt
+  LTE2 e1    -> TInt
+  Or1 e1     -> TBool
+  Or2 e1     -> TBool
+  And1 e1    -> TBool
+  And2 e1    -> TBool
+  Not        -> TBool
+  If2 _ e2  -> undefined -- type of e2
+  If3 _ e2  -> undefined -- type of e2
+  If2Var _ _ -> undefined -- type of e, otherwise undefined
+  If3Var _ _ -> undefined -- type of e, otherwise undefined
+  Let1 s e1 -> undefined
+  Let2 s e1 -> undefined
+  Lam str   -> undefined -- actually errory
+  Ap1 e1    -> undefined
+  Ap2 e2    -> undefined
+
+isUndecided :: Expr -> Bool
+isUndecided (EVar _) = True
+isUndecided _       = False
+
+--infer :: ASTZipper -> Context -> Context
+--infer (EVar a, (If1 _ _):_) ctx = M.insert a TBool ctx
+--infer _ _ = undefined
+---- and so on
+
 typeOf :: Expr -> Either FievelError Type
 typeOf (EVal (VInt _))  = Right TInt
 typeOf (EVal (VBool _)) = Right TBool
 typeOf (EVal (VStr _))  = Right TStr
 typeOf (EOp op)         = typeOfOp op
 typeOf (EIf e1 e2 e3)   = typeOfIf e1 e2 e3
+typeOf (ELam v e)       =
+  let (maybeErr, bindings) = runState (getBindings e) M.empty
+  in case maybeErr of 
+    Just err -> Left err
+    Nothing -> case M.lookup v bindings of
+      Nothing -> Left . TypeError $ "Variable not used in scope: " ++ v
+      Just t -> case (typeOf e) of
+        err@(Left _) -> err
+        Right t'     -> Right $ TLam t t'
 typeOf (EVar s)         = Left . TypeError $ "Variable not in scope: " ++ s
-typeOf _                = Left . TypeError $ "Not yet implemented."
+typeOf _                = Left . InternalError $ "Not yet implemented."
 
 typeOfIf :: Expr -> Expr -> Expr -> Either FievelError Type
 typeOfIf e1 e2 e3 = 
@@ -48,7 +229,7 @@ typeOfIf e1 e2 e3 =
           (l@(Left t), _) -> l
           (_, l@(Left t)) -> l
 
--- Operation type checking 
+-- Operation type checking
 typeOfOp :: PrimOp -> Either FievelError Type
 typeOfOp op = 
   let chkNNBO = checkBinOp TInt TInt TInt
@@ -137,16 +318,16 @@ checkUnaryOp et ft e opname =
 getBindings :: Expr -> State Context (Maybe FievelError)
 getBindings expr = case expr of
   EOp op          -> getOpBindings op
-  ELam _ e        -> getBindings e
-  e@(EIf b e1 e2) -> getIfBindings  e -- check
-  e@(ELet _ _ _ ) -> getLetBindings e
-  e@(EAp  _ _   ) -> getApBindings  e
+  ELam _ e        -> getBindings    e
+  e@(EIf b e1 e2) -> getIfBindings  e
+  e@(ELet _ _ _ ) -> error "Not yet implemented: getBindings for Let expressions"-- this one's hard
+  e@(EAp  _ _   ) -> error "Not yet implemented: getBindings for application" -- this one too
   EVal v          -> return Nothing
   EVar str        -> return . Just . TypeError $ "Variable " ++ show str ++ " is not bound."
   EDef def e      -> return . Just . TypeError $ "Encountered top-level definition for " ++ show def
   EType v t       -> return . Just . TypeError $ "Encountered type signature for " ++ show v
 
-getIfBindings, getLetBindings, getApBindings :: Expr -> State Context (Maybe FievelError)
+getIfBindings :: Expr -> State Context (Maybe FievelError)
 getIfBindings e@(EIf _ (EVar b) (EVar c)) = 
   return . Just . TypeError $ "Could not deduce singular type for branches of if-statement, namely " ++ show e
 
@@ -208,9 +389,6 @@ getIfBindings (EIf a b c) = do
       case mErr' of
         err@(Just _) -> return err
         Nothing -> getBindings c
-
-getLetBindings = undefined
-getApBindings = undefined
 
 ins :: Type -> String -> Expr -> State Context (Maybe FievelError)
 ins t a e = modify (M.insert a t) >> getBindings e
